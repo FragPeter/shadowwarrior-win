@@ -1,0 +1,42 @@
+diff --git a/src/config.c b/src/config.c
+index 2bb4c59..98df57e 100644
+--- a/src/config.c
++++ b/src/config.c
+@@ -37,9 +37,9 @@ int32 SetupSound;
+ int32 SetupMusic;
+ int32 FxOn;
+ int32 MusicOn;
+-int32 ScreenWidth = 640;
+-int32 ScreenHeight = 480;
+-int32 ScreenBPP = 8;
++int32 ScreenWidth = 1280;
++int32 ScreenHeight = 720;
++int32 ScreenBPP = 32;
+ int32 ScreenMode;
+ int32 ScreenDisplay;
+ int32 Brightness;
+@@ -572,9 +572,9 @@ void CONFIG_SetDefaults(void)
+ 	SetupSound = 1;
+ 	SetupMusic = 1;
+ 	FxOn = 1;
+ 	MusicOn = 1;
+-	ScreenWidth = 640;
+-	ScreenHeight = 480;
+-	ScreenBPP = 8;
++	ScreenWidth = 1280;
++	ScreenHeight = 720;
++	ScreenBPP = 32;
+ 	ScreenMode = 0;
+ 	ScreenDisplay = 0;
+ 	Brightness = 4;
+@@ -584,9 +584,9 @@ void CONFIG_SetDefaults(void)
+ 	MouseAiming = 0;
+ 	MouseInvert = 0;
+ 
+-	CONTROL_SetDefaults(CONFIG_DEFAULTS_CLASSIC, 0);
+-	CONTROL_SetDefaults(CONFIG_DEFAULTS_CLASSIC, 1);
+-	CONTROL_SetDefaults(CONFIG_DEFAULTS_CLASSIC, 2);
++	CONTROL_SetDefaults(CONFIG_DEFAULTS_MODERN, 0);
++	CONTROL_SetDefaults(CONFIG_DEFAULTS_MODERN, 1);
++	CONTROL_SetDefaults(CONFIG_DEFAULTS_MODERN, 2);
+ }

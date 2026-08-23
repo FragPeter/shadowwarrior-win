@@ -1,0 +1,162 @@
+diff --git a/src/baselayer.c b/src/baselayer.c
+--- a/src/baselayer.c
++++ b/src/baselayer.c
+@@ -174,5 +174,6 @@ void addstandardvalidmodes(int maxx, int maxy, int bpp, int fs, int display, uns
+ {
+ 	static const int defaultres[][2] = {
++		{3840,2160}, {3440,1440}, {2560,1440}, {2560,1080},
+ 		{1920,1200}, {1920,1080}, {1600,1200}, {1680,1050}, {1600,900},
+ 		{1400,1050}, {1440,900},  {1366,768},  {1280,1024}, {1280,960},
+ 		{1280,800},  {1280,720},  {1152,864},  {1024,768},  {800,600},
+diff --git a/src/sdlayer2.c b/src/sdlayer2.c
+--- a/src/sdlayer2.c
++++ b/src/sdlayer2.c
+@@ -36,6 +36,14 @@
+ #endif
+ 
+ static int backgroundidle = 0;
++enum {
++	DISPLAYMODE_CONFIG = -1,
++	DISPLAYMODE_WINDOWED = 0,
++	DISPLAYMODE_FULLSCREEN = 1,
++	DISPLAYMODE_BORDERLESS = 2
++};
++static int forceddisplaymode = DISPLAYMODE_CONFIG;
++static int forceddisplay = -1;
+ static char apptitle[256] = "Build Engine";
+ static char wintitle[256] = "";
+ 
+@@ -328,6 +337,41 @@ int initsystem(void)
+ 
+ 	enumdisplays();
+ 
++	{
++		const char *mode = getenv("SW_DISPLAY_MODE");
++		const char *monitor = getenv("SW_MONITOR");
++		const char *maxrefresh = getenv("SW_MAX_REFRESH");
++
++		if (mode && mode[0]) {
++			if (!Bstrcasecmp(mode, "windowed"))
++				forceddisplaymode = DISPLAYMODE_WINDOWED;
++			else if (!Bstrcasecmp(mode, "fullscreen"))
++				forceddisplaymode = DISPLAYMODE_FULLSCREEN;
++			else if (!Bstrcasecmp(mode, "borderless"))
++				forceddisplaymode = DISPLAYMODE_BORDERLESS;
++		}
++
++		if (monitor && monitor[0])
++			forceddisplay = Batoi(monitor);
++
++		if (maxrefresh && maxrefresh[0]) {
++			int hz = Batoi(maxrefresh);
++			if (hz > 0)
++				maxrefreshfreq = (unsigned)hz;
++		}
++
++		if (forceddisplaymode == DISPLAYMODE_WINDOWED)
++			buildputs("Windows 11 display override: windowed mode\n");
++		else if (forceddisplaymode == DISPLAYMODE_FULLSCREEN)
++			buildputs("Windows 11 display override: exclusive fullscreen\n");
++		else if (forceddisplaymode == DISPLAYMODE_BORDERLESS)
++			buildputs("Windows 11 display override: borderless fullscreen\n");
++		if (forceddisplay >= 0)
++			buildprintf("Windows 11 display override: monitor %d\n", forceddisplay);
++		if (maxrefreshfreq > 0)
++			buildprintf("Windows 11 refresh cap: %u Hz\n", maxrefreshfreq);
++	}
++
+ 	atexit(uninitsystem);
+ 
+ #if USE_OPENGL
+@@ -343,6 +385,17 @@ int initsystem(void)
+ 		}
+ 	}
+ 
++	{
++		const char *vsync = getenv("SW_VSYNC");
++		if (vsync && vsync[0]) {
++			int interval = Batoi(vsync);
++			if (interval >= -1 && interval <= 8) {
++				glswapinterval = interval;
++				buildprintf("Windows 11 OpenGL swap interval: %d\n", glswapinterval);
++			}
++		}
++	}
++
+ 	OSD_RegisterFunction("glswapinterval", "glswapinterval: frame swap interval for OpenGL modes. 0 = no vsync, -1 = adaptive, max 8", set_glswapinterval);
+ #endif
+ 	if (getenv("BUILD_USESDLRENDERER")) {
+@@ -812,19 +864,40 @@ int setvideomode(int xdim, int ydim, int bitspp, int fullsc)
+ 	int flags, display, modenum;
+ 	int winx, winy, winw, winh;
++	int borderless = 0;
+ 	unsigned refresh=0;
+ 	const char *str;
+ 
++	display = forceddisplay >= 0 ? forceddisplay : (fullsc >> 8);
++	if (display < 0 || display >= displaycnt)
++		display = 0;
++
++	if (forceddisplaymode == DISPLAYMODE_WINDOWED) {
++		fullsc = 0;
++		display = 0;
++	} else if (forceddisplaymode == DISPLAYMODE_FULLSCREEN ||
++			forceddisplaymode == DISPLAYMODE_BORDERLESS) {
++		fullsc = (display << 8) | 1;
++	} else {
++		fullsc = (fullsc & 255) | (display << 8);
++	}
++
++	borderless = (forceddisplaymode == DISPLAYMODE_BORDERLESS) && (fullsc & 255);
++	if (borderless) {
++		xdim = displays[display].mode.w;
++		ydim = displays[display].mode.h;
++	}
++
+ 	if ((fullsc == fullscreen) && (xdim == xres) && (ydim == yres) && (bitspp == bpp) && !videomodereset) {
+ 		OSD_ResizeDisplay(xres,yres);
+ 		return 0;
+ 	}
+ 
+-	display = fullsc>>8;
+-	if (display >= displaycnt) display = 0, fullsc &= 255; // Display number out of range, use primary instead.
+ 	modenum = checkvideomode(&xdim,&ydim,bitspp,fullsc,0);	// Will return if GL mode not available.
+ 	if (modenum < 0) return -1;
+ 	else if (modenum != VIDEOMODE_RELAXED) refresh = validmode[modenum].refresh;
+ 	else if (fullsc&255) return -1; // Must be a perfect match for fullscreen.
++	if (borderless)
++		refresh = displays[display].mode.refresh_rate;
+ 
+ 	if (mouseacquired) {
+ 		regrab = 1;
+@@ -836,7 +906,9 @@ int setvideomode(int xdim, int ydim, int bitspp, int fullsc)
+ 	if (baselayer_videomodewillchange) baselayer_videomodewillchange();
+ 	shutdownvideo();
+ 
+-	if ((fullsc&255) && refresh) str = "Setting video mode %dx%d (%d-bit fullscreen, display %d, %u Hz)\n";
++	if (borderless && refresh) str = "Setting video mode %dx%d (%d-bit borderless fullscreen, display %d, %u Hz)\n";
++	else if (borderless) str = "Setting video mode %dx%d (%d-bit borderless fullscreen, display %d)\n";
++	else if ((fullsc&255) && refresh) str = "Setting video mode %dx%d (%d-bit fullscreen, display %d, %u Hz)\n";
+ 	else if (fullsc&255) str = "Setting video mode %dx%d (%d-bit fullscreen, display %d)\n";
+ 	else str = "Setting video mode %dx%d (%d-bit windowed)\n";
+ 	buildprintf(str,xdim,ydim,bitspp,display,refresh);
+@@ -878,8 +950,8 @@ int setvideomode(int xdim, int ydim, int bitspp, int fullsc)
+ 		winy = displays[display].bounds.y + (displays[display].bounds.h - ydim) / 2;
+ 		winw = xdim; winh = ydim;
+ 		if (fullsc&255) {
+-			if (bitspp > 8) flags |= SDL_WINDOW_FULLSCREEN;
+-			else flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
++			if (borderless || bitspp <= 8) flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
++			else flags |= SDL_WINDOW_FULLSCREEN;
+ 		}
+ 
+ 		sdl_window = SDL_CreateWindow(wintitle, winx, winy, winw, winh, flags);
+@@ -896,7 +968,7 @@ int setvideomode(int xdim, int ydim, int bitspp, int fullsc)
+ #endif
+ 
+ 			return -1;
+-		} else if ((fullsc&255) && bitspp>8) {
++		} else if ((fullsc&255) && bitspp>8 && !borderless) {
+ 			SDL_DisplayMode mode;
+ 			if (SDL_GetDisplayMode(displays[display].index, validmode[modenum].extra, &mode) == 0) {
+ 				if (SDL_SetWindowDisplayMode(sdl_window, &mode) < 0) {

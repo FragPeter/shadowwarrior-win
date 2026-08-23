@@ -1,0 +1,110 @@
+name: Windows 11 x64 build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout port kit
+        uses: actions/checkout@v4
+
+      - name: Clone JFShadowWarrior source
+        shell: pwsh
+        run: |
+          git clone https://github.com/jonof/jfsw.git jfsw-win11
+          if ($LASTEXITCODE -ne 0) { throw 'JFShadowWarrior clone failed.' }
+          Push-Location jfsw-win11
+          try {
+            git checkout befcdd01afe5151cac2f1dabf0a7256c42537284
+            if ($LASTEXITCODE -ne 0) { throw 'Pinned JFShadowWarrior commit checkout failed.' }
+            git submodule update --init --recursive
+            if ($LASTEXITCODE -ne 0) { throw 'Submodule initialization failed.' }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Apply Windows 11 overlay
+        shell: pwsh
+        run: |
+          Push-Location jfsw-win11
+          try {
+            git apply ../patches/0001-win11-modern-defaults.patch
+            if ($LASTEXITCODE -ne 0) { throw 'Windows 11 modern-defaults patch failed.' }
+            git apply ../patches/0002-win11-1080p-default.patch
+            if ($LASTEXITCODE -ne 0) { throw 'Windows 11 1080p-default patch failed.' }
+            Push-Location jfbuild
+            try {
+              git apply ../../patches/0003-jfbuild-win11-display-modernization.patch
+              if ($LASTEXITCODE -ne 0) { throw 'JFBuild Stage 3 display patch failed.' }
+            } finally {
+              Pop-Location
+            }
+          } finally {
+            Pop-Location
+          }
+          Copy-Item overlay/Makefile.msvcuser jfsw-win11/Makefile.msvcuser -Force
+          Copy-Item overlay/rsrc/game.manifest jfsw-win11/rsrc/game.manifest -Force
+
+      - name: Validate Windows 11 overlay
+        shell: pwsh
+        run: |
+          [xml]$manifest = Get-Content overlay/rsrc/game.manifest
+          if ((Get-Content overlay/rsrc/game.manifest -Raw) -notmatch 'PerMonitorV2') { throw 'PerMonitorV2 missing from manifest.' }
+          if ((Get-Content overlay/rsrc/game.manifest -Raw) -notmatch 'longPathAware') { throw 'longPathAware missing from manifest.' }
+          Push-Location jfsw-win11
+          try {
+            if ((Get-Content src/config.c -Raw) -notmatch 'ScreenWidth = 1920') { throw '1080p fresh-install default missing.' }
+            git diff --check
+            if ($LASTEXITCODE -ne 0) { throw 'Patched game source failed git diff --check.' }
+            Push-Location jfbuild
+            try {
+              if ((Get-Content src/sdlayer2.c -Raw) -notmatch 'SW_DISPLAY_MODE') { throw 'Stage 3 display override missing.' }
+              if ((Get-Content src/baselayer.c -Raw) -notmatch '\{3840,2160\}') { throw '4K standard mode missing.' }
+              git diff --check
+              if ($LASTEXITCODE -ne 0) { throw 'Patched JFBuild source failed git diff --check.' }
+            } finally {
+              Pop-Location
+            }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Build x64 with Visual Studio 2022
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -version '[17.0,18.0)' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'Visual Studio 2022 C++ tools not found.' }
+          $vcvars = Join-Path $vs.Trim() 'VC\Auxiliary\Build\vcvars64.bat'
+          Push-Location jfsw-win11
+          try {
+            cmd /d /s /c "call `"$vcvars`" >nul && nmake /nologo /f Makefile.msvc"
+            if ($LASTEXITCODE -ne 0) { throw "nmake failed with $LASTEXITCODE" }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Stage engine artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist | Out-Null
+          Copy-Item jfsw-win11/sw.exe dist/
+          foreach ($name in @('xaudio2_9redist.dll', 'SDL2.dll', 'GPL.TXT', 'releasenotes.html')) {
+            $path = Join-Path 'jfsw-win11' $name
+            if (Test-Path $path) { Copy-Item $path dist/ }
+          }
+          Copy-Item launcher/Start-ShadowWarrior.ps1 dist/
+          Copy-Item launcher/Start-ShadowWarrior.cmd dist/
+          Copy-Item launcher/README-WINDOWS11.txt dist/
+          'Original Shadow Warrior game data is not included.' | Set-Content dist/GAME-DATA-NOT-INCLUDED.txt
+
+      - name: Upload engine artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShadowWarrior-Win11-x64-engine
+          path: dist/

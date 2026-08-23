@@ -1,0 +1,3 @@
+param([ValidateSet('On','Off','Status')][string]$Mode='Status',[string]$SourceRoot)
+. (Join-Path $PSScriptRoot 'common.ps1')
+if(-not $SourceRoot){$SourceRoot=Get-SourceRoot};$marker=Join-Path $SourceRoot 'user_profiles_disabled';switch($Mode){'On'{if(-not(Test-Path $SourceRoot)){throw "Source root not found: $SourceRoot"};if(-not(Test-Path $marker)){New-Item -ItemType File -Path $marker|Out-Null};Write-Host 'Portable mode: ON'}'Off'{if(Test-Path $marker){Remove-Item $marker -Force};Write-Host 'Portable mode: OFF'}'Status'{if(Test-Path $marker){Write-Host 'Portable mode: ON'}else{Write-Host 'Portable mode: OFF'}}}
