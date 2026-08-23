@@ -31,33 +31,11 @@ jobs:
       - name: Apply Windows 11 overlay
         shell: pwsh
         run: |
-          Push-Location jfsw-win11
+          ./scripts/apply-win11-source-transforms.ps1 -SourceRoot ./jfsw-win11
+          Push-Location jfsw-win11/jfbuild
           try {
-            $configPath = 'src/config.c'
-            $config = Get-Content $configPath -Raw
-            $config = $config.Replace('int32 ScreenWidth = 640;', 'int32 ScreenWidth = 1920;')
-            $config = $config.Replace('int32 ScreenHeight = 480;', 'int32 ScreenHeight = 1080;')
-            $config = $config.Replace('int32 ScreenBPP = 8;', 'int32 ScreenBPP = 32;')
-            $config = $config.Replace('CONFIG_SetDefaultKeyDefinitions(CONFIG_DEFAULTS_CLASSIC);', 'CONFIG_SetDefaultKeyDefinitions(CONFIG_DEFAULTS_MODERN);')
-            $config = $config.Replace('CONFIG_SetMouseDefaults(CONFIG_DEFAULTS_CLASSIC);', 'CONFIG_SetMouseDefaults(CONFIG_DEFAULTS_MODERN);')
-            $config = $config.Replace('CONFIG_SetJoystickDefaults(CONFIG_DEFAULTS_CLASSIC);', 'CONFIG_SetJoystickDefaults(CONFIG_DEFAULTS_MODERN);')
-            Set-Content $configPath -Value $config -NoNewline -Encoding utf8
-
-            if ((Get-Content $configPath -Raw) -notmatch 'ScreenWidth = 1920') { throw 'Windows 11 config transform failed.' }
-
-            $xaudioPath = 'jfaudiolib/src/driver_xaudio2.c'
-            $xaudio = Get-Content $xaudioPath -Raw
-            $xaudio = $xaudio.Replace('#define _WIN32_WINNT _WIN32_WINNT_WIN7', '#define _WIN32_WINNT 0x0A00')
-            Set-Content $xaudioPath -Value $xaudio -NoNewline -Encoding utf8
-            if ((Get-Content $xaudioPath -Raw) -notmatch '#define _WIN32_WINNT 0x0A00') { throw 'Windows 11 XAudio2 target transform failed.' }
-
-            Push-Location jfbuild
-            try {
-              git apply ../../patches/0003-jfbuild-win11-display-modernization.patch
-              if ($LASTEXITCODE -ne 0) { throw 'JFBuild Stage 3 display patch failed.' }
-            } finally {
-              Pop-Location
-            }
+            git apply ../../patches/0003-jfbuild-win11-display-modernization.patch
+            if ($LASTEXITCODE -ne 0) { throw 'JFBuild Stage 3 display patch failed.' }
           } finally {
             Pop-Location
           }
@@ -81,7 +59,12 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Patched game source failed git diff --check.' }
             Push-Location jfbuild
             try {
-              if ((Get-Content src/sdlayer2.c -Raw) -notmatch 'SW_DISPLAY_MODE') { throw 'Stage 3 display override missing.' }
+              $winlayer = Get-Content src/winlayer.c -Raw
+              if ($winlayer -notmatch 'SW_DISPLAY_MODE') { throw 'Win32 display override missing.' }
+              if ($winlayer -notmatch 'DISPLAYMODE_BORDERLESS') { throw 'Win32 borderless state missing.' }
+              if ($winlayer -notmatch 'bitspp > 8 && !borderless') { throw 'Win32 exclusive-display bypass missing.' }
+              if ($winlayer -notmatch 'SW_MAX_REFRESH') { throw 'Win32 refresh override missing.' }
+              if ($winlayer -notmatch 'SW_VSYNC') { throw 'Win32 VSync override missing.' }
               if ((Get-Content src/baselayer.c -Raw) -notmatch '\{3840,2160\}') { throw '4K standard mode missing.' }
               git diff --check
               if ($LASTEXITCODE -ne 0) { throw 'Patched JFBuild source failed git diff --check.' }
