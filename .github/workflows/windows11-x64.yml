@@ -101,6 +101,7 @@ jobs:
           }
           Copy-Item launcher/Start-ShadowWarrior.ps1 dist/
           Copy-Item launcher/Start-ShadowWarrior.cmd dist/
+          Copy-Item launcher/Runtime-Test-ShadowWarrior.ps1 dist/
           Copy-Item launcher/README-WINDOWS11.txt dist/
           'Original Shadow Warrior game data is not included.' | Set-Content dist/GAME-DATA-NOT-INCLUDED.txt
 
