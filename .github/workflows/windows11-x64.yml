@@ -45,6 +45,12 @@ jobs:
 
             if ((Get-Content $configPath -Raw) -notmatch 'ScreenWidth = 1920') { throw 'Windows 11 config transform failed.' }
 
+            $xaudioPath = 'jfaudiolib/src/driver_xaudio2.c'
+            $xaudio = Get-Content $xaudioPath -Raw
+            $xaudio = $xaudio.Replace('#define _WIN32_WINNT _WIN32_WINNT_WIN7', '#define _WIN32_WINNT 0x0A00')
+            Set-Content $xaudioPath -Value $xaudio -NoNewline -Encoding utf8
+            if ((Get-Content $xaudioPath -Raw) -notmatch '#define _WIN32_WINNT 0x0A00') { throw 'Windows 11 XAudio2 target transform failed.' }
+
             Push-Location jfbuild
             try {
               git apply ../../patches/0003-jfbuild-win11-display-modernization.patch
@@ -70,6 +76,7 @@ jobs:
             if ($config -notmatch 'ScreenWidth = 1920') { throw '1080p fresh-install default missing.' }
             if ($config -notmatch 'ScreenHeight = 1080') { throw '1080p fresh-install height missing.' }
             if ($config -notmatch 'CONFIG_DEFAULTS_MODERN') { throw 'Modern input defaults missing.' }
+            if ((Get-Content jfaudiolib/src/driver_xaudio2.c -Raw) -notmatch '#define _WIN32_WINNT 0x0A00') { throw 'Windows 11 XAudio2 target missing.' }
             git diff --check
             if ($LASTEXITCODE -ne 0) { throw 'Patched game source failed git diff --check.' }
             Push-Location jfbuild
