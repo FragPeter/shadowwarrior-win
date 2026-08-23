@@ -9,12 +9,12 @@ function Replace-Required {
     param(
         [Parameter(Mandatory=$true)][string]$Path,
         [Parameter(Mandatory=$true)][string]$Old,
-        [Parameter(Mandatory=$true)][string]$New,
+        [Parameter(Mandatory=$true)][AllowEmptyString()][string]$New,
         [Parameter(Mandatory=$true)][string]$Label
     )
 
     $content = Get-Content $Path -Raw
-    if ($content.Contains($New)) {
+    if ($New.Length -gt 0 -and $content.Contains($New)) {
         Write-Host "Already applied: $Label"
         return
     }
