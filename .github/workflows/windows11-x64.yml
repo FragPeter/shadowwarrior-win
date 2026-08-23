@@ -33,10 +33,18 @@ jobs:
         run: |
           Push-Location jfsw-win11
           try {
-            git apply ../patches/0001-win11-modern-defaults.patch
-            if ($LASTEXITCODE -ne 0) { throw 'Windows 11 modern-defaults patch failed.' }
-            git apply ../patches/0002-win11-1080p-default.patch
-            if ($LASTEXITCODE -ne 0) { throw 'Windows 11 1080p-default patch failed.' }
+            $configPath = 'src/config.c'
+            $config = Get-Content $configPath -Raw
+            $config = $config.Replace('int32 ScreenWidth = 640;', 'int32 ScreenWidth = 1920;')
+            $config = $config.Replace('int32 ScreenHeight = 480;', 'int32 ScreenHeight = 1080;')
+            $config = $config.Replace('int32 ScreenBPP = 8;', 'int32 ScreenBPP = 32;')
+            $config = $config.Replace('CONFIG_SetDefaultKeyDefinitions(CONFIG_DEFAULTS_CLASSIC);', 'CONFIG_SetDefaultKeyDefinitions(CONFIG_DEFAULTS_MODERN);')
+            $config = $config.Replace('CONFIG_SetMouseDefaults(CONFIG_DEFAULTS_CLASSIC);', 'CONFIG_SetMouseDefaults(CONFIG_DEFAULTS_MODERN);')
+            $config = $config.Replace('CONFIG_SetJoystickDefaults(CONFIG_DEFAULTS_CLASSIC);', 'CONFIG_SetJoystickDefaults(CONFIG_DEFAULTS_MODERN);')
+            Set-Content $configPath -Value $config -NoNewline -Encoding utf8
+
+            if ((Get-Content $configPath -Raw) -notmatch 'ScreenWidth = 1920') { throw 'Windows 11 config transform failed.' }
+
             Push-Location jfbuild
             try {
               git apply ../../patches/0003-jfbuild-win11-display-modernization.patch
@@ -58,7 +66,10 @@ jobs:
           if ((Get-Content overlay/rsrc/game.manifest -Raw) -notmatch 'longPathAware') { throw 'longPathAware missing from manifest.' }
           Push-Location jfsw-win11
           try {
-            if ((Get-Content src/config.c -Raw) -notmatch 'ScreenWidth = 1920') { throw '1080p fresh-install default missing.' }
+            $config = Get-Content src/config.c -Raw
+            if ($config -notmatch 'ScreenWidth = 1920') { throw '1080p fresh-install default missing.' }
+            if ($config -notmatch 'ScreenHeight = 1080') { throw '1080p fresh-install height missing.' }
+            if ($config -notmatch 'CONFIG_DEFAULTS_MODERN') { throw 'Modern input defaults missing.' }
             git diff --check
             if ($LASTEXITCODE -ne 0) { throw 'Patched game source failed git diff --check.' }
             Push-Location jfbuild
