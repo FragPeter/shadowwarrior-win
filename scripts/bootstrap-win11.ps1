@@ -26,14 +26,27 @@ function Apply-RepoPatch {
     } finally { Pop-Location }
 }
 
-if (-not (Test-Path $SourceRoot)) { & git clone https://github.com/jonof/jfsw.git $SourceRoot; if ($LASTEXITCODE -ne 0) { throw 'git clone failed.' } }
+if (-not (Test-Path $SourceRoot)) {
+    & git clone https://github.com/jonof/jfsw.git $SourceRoot
+    if ($LASTEXITCODE -ne 0) { throw 'git clone failed.' }
+}
+
 Push-Location $SourceRoot
-try { & git checkout $upstreamCommit; if ($LASTEXITCODE -ne 0) { throw "Could not checkout pinned upstream commit $upstreamCommit." }; & git submodule update --init --recursive; if ($LASTEXITCODE -ne 0) { throw 'git submodule update failed.' } } finally { Pop-Location }
-Apply-RepoPatch $SourceRoot (Join-Path $kitRoot 'patches\0001-win11-modern-defaults.patch') 'Win11 modern control/video defaults'
-Apply-RepoPatch $SourceRoot (Join-Path $kitRoot 'patches\0002-win11-1080p-default.patch') 'Win11 1080p fresh-install default'
+try {
+    & git checkout $upstreamCommit
+    if ($LASTEXITCODE -ne 0) { throw "Could not checkout pinned upstream commit $upstreamCommit." }
+    & git submodule update --init --recursive
+    if ($LASTEXITCODE -ne 0) { throw 'git submodule update failed.' }
+} finally {
+    Pop-Location
+}
+
+& (Join-Path $kitRoot 'scripts\apply-win11-source-transforms.ps1') -SourceRoot $SourceRoot
+
 $jfbuildRoot = Join-Path $SourceRoot 'jfbuild'
 if (-not (Test-Path $jfbuildRoot)) { throw 'The jfbuild submodule was not initialized.' }
 Apply-RepoPatch $jfbuildRoot (Join-Path $kitRoot 'patches\0003-jfbuild-win11-display-modernization.patch') 'JFBuild Win11 display modernization'
+
 Copy-Item (Join-Path $kitRoot 'overlay\Makefile.msvcuser') (Join-Path $SourceRoot 'Makefile.msvcuser') -Force
 Copy-Item (Join-Path $kitRoot 'overlay\rsrc\game.manifest') (Join-Path $SourceRoot 'rsrc\game.manifest') -Force
-Write-Host 'Windows 11 Stage 3 overlay applied.'
+Write-Host 'Windows 11 Stage 3.1 overlay applied.'
