@@ -1,27 +1,25 @@
 diff --git a/src/config.c b/src/config.c
-index 98df57e..2d4ec58 100644
 --- a/src/config.c
 +++ b/src/config.c
-@@ -37,8 +37,8 @@ int32 SetupSound;
- int32 SetupMusic;
- int32 FxOn;
- int32 MusicOn;
+@@ -83,8 +83,8 @@ int32 JoystickAnalogSaturate[MAXJOYAXES];
+ //
+ int32 ScreenMode = 1;
+ int32 ScreenDisplay = 0;
 -int32 ScreenWidth = 1280;
 -int32 ScreenHeight = 720;
 +int32 ScreenWidth = 1920;
 +int32 ScreenHeight = 1080;
  int32 ScreenBPP = 32;
- int32 ScreenMode;
- int32 ScreenDisplay;
-@@ -572,8 +572,8 @@ void CONFIG_SetDefaults(void)
- 	SetupSound = 1;
- 	SetupMusic = 1;
- 	FxOn = 1;
- 	MusicOn = 1;
--	ScreenWidth = 1280;
--	ScreenHeight = 720;
-+	ScreenWidth = 1920;
-+	ScreenHeight = 1080;
- 	ScreenBPP = 32;
- 	ScreenMode = 0;
- 	ScreenDisplay = 0;
+ int32 ForceSetup = 1;
+ 
+@@ -202,8 +202,8 @@ void CONFIG_SetDefaults( void )
+ 
+    ScreenMode = 1;
+    ScreenDisplay = 0;
+-   ScreenWidth = 1280;
+-   ScreenHeight = 720;
++   ScreenWidth = 1920;
++   ScreenHeight = 1080;
+    ScreenBPP = 32;
+    FXDevice = 0;
+    MusicDevice = 0;
