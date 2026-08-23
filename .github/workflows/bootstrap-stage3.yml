@@ -5,6 +5,8 @@ on:
     paths:
       - '.bootstrap/**'
       - '.github/workflows/bootstrap-stage3.yml'
+  pull_request_target:
+    types: [opened, reopened, synchronize]
   workflow_dispatch:
 
 permissions:
@@ -14,8 +16,10 @@ jobs:
   install:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout trusted main branch
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Rebuild Stage 3 project tree
         shell: bash
@@ -34,4 +38,4 @@ jobs:
             exit 0
           fi
           git commit -m "Add Shadow Warrior Windows 11 Stage 3 port kit"
-          git push
+          git push origin HEAD:main
